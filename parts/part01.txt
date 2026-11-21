@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0d0b14">
+<title>ناجٍ من الليل — Night Survivor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none}
+:root{
+ --bg:#0d0b14;--panel:#171326;--panel2:#211a38;--line:#372d57;--txt:#eae6f7;--dim:#9c94bd;
+ --vio:#a78bfa;--vio2:#7c5cd6;--gold:#ffd54a;--red:#ff5566;--grn:#7de07d;--cy:#39d5ff
+}
+html,body{width:100%;height:100%;overflow:hidden;position:fixed;inset:0;background:var(--bg);color:var(--txt);
+ font-family:'Segoe UI',Tahoma,'Noto Sans Arabic','Arial',sans-serif;font-size:15px}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{position:absolute;inset:0;display:none;pointer-events:none;z-index:5}
+#hud.on{display:block}
+#h-top{position:absolute;top:0;right:0;left:0;padding:6px 10px 0}
+.bar{position:relative;background:#00000090;border:1px solid var(--line);height:14px;overflow:hidden}
+.bar .fill{height:100%;width:0%;transition:width .08s linear}
+#h-xpwrap{height:9px}
+#h-xpfill{background:linear-gradient(180deg,#9df,#0891b2)}
+#h-hpwrap{margin-top:4px;height:16px}
+#h-hpfill{background:linear-gradient(180deg,#ff8a8a,#c22d3d);width:100%}
+#h-hptxt{position:absolute;inset:0;text-align:center;font-size:11px;line-height:15px;color:#fff;text-shadow:0 1px 2px #000}
+#h-row{display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:13px;font-weight:600;text-shadow:0 1px 2px #000}
+#h-lvl{color:var(--vio)}#h-time{color:var(--txt);letter-spacing:1px}#h-kills{color:var(--gold)}
+#h-btns{display:flex;gap:8px}
+.hbtn{pointer-events:auto;background:#00000070;border:1px solid var(--line);color:var(--txt);border-radius:8px;
+ width:38px;height:34px;font-size:15px;text-align:center}
+#h-wchip{position:absolute;bottom:max(8px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+ pointer-events:none;background:#000000a8;border:1px solid var(--line);border-radius:12px;padding:6px 12px;
+ display:flex;align-items:center;gap:10px;max-width:94vw}
+#h-wico{width:36px;height:36px;flex:0 0 36px}
+#h-wname{font-size:13px;font-weight:700;color:var(--vio)}
+#h-watk{font-size:11px;color:var(--txt)}
+#h-wstats{font-size:10px}
+.dim{color:var(--dim)}
+.scr{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;z-index:10;
+ overflow-y:auto;overflow-x:hidden;background:transparent;padding:16px 10px calc(16px + env(safe-area-inset-bottom))}
+.scr.on{display:flex}
+.scr.op{background:linear-gradient(180deg,#0d0b14f2,#0d0b14f8)}
+.ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:20;
+ background:#0d0b14d0;padding:14px}
+.ov.on{display:flex}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;width:min(430px,96vw);
+ box-shadow:0 10px 40px #000a;display:flex;flex-direction:column;gap:10px}
+.ov-t{font-size:22px;font-weight:800;text-align:center;color:var(--vio)}
+.ov-t.red{color:var(--red)} .ov-t.grn{color:var(--grn)}
+.btn{pointer-events:auto;background:linear-gradient(180deg,var(--panel2),var(--panel));color:var(--txt);
+ border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-weight:700;
+ font-family:inherit;cursor:pointer;text-align:center}
+.btn.pri{background:linear-gradient(180deg,#9d7cf0,#6a48c8);border-color:#8d72e0;color:#fff}
+.btn.big{font-size:19px;padding:15px}
+.btn.sm{font-size:12px;padding:8px 10px;flex:1}
+.btn.danger{border-color:#7a2733;color:#ffb4bd}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.danger:disabled{color:#ffb4bd80}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#00000060;border:1px solid var(--line);
+ border-radius:999px;padding:4px 10px;font-size:12px;color:var(--txt)}
+.chip.gold{color:var(--gold);border-color:#6e5a1a}
+.chip.keep{color:var(--vio);border-color:#5844a0}
+.chiprow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chiprow .chip{cursor:pointer;text-align:center}
+.chip.sel{outline:2px solid var(--vio);color:#fff;background:#2c2450}
+.topbar{display:flex;align-items:center;gap:10px;width:100%;max-width:520px;padding:4px 0 10px}
+.topbar .ttl{flex:1;text-align:center;font-size:18px;font-weight:800;color:var(--vio)}
+.sec-t{width:min(560px,97vw);font-size:13px;font-weight:800;color:var(--dim);margin:10px 2px 6px;text-align:right}
+.cgrid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:min(560px,97vw)}
+.ccard{width:calc(50% - 4px);max-width:176px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+ padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.ccard.sel{outline:2px solid var(--vio);background:var(--panel2)}
+.ccard canvas{width:56px;height:48px}
+.ccard .nm{font-size:13px;font-weight:800;color:var(--vio)}
+.ccard .wp{font-size:10px;color:var(--txt)}
+.ccard .at{font-size:10px;color:var(--dim)}
+.ccard .st{font-size:9px;color:var(--dim);line-height:1.5;text-align:center}
+.mgrid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:min(560px,97vw)}
+.mcard{width:calc(33% - 6px);min-width:104px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+ padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.mcard.sel{outline:2px solid var(--vio);background:var(--panel2)}
+.mcard canvas{width:90px;height:60px;border-radius:8px}
+.mcard .nm{font-size:12px;font-weight:700}
+.mcard .mul{font-size:10px;color:var(--gold)}
+.segwrap{display:flex;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;width:min(430px,96vw)}
+.seg{flex:1;padding:10px 4px;text-align:center;font-size:13px;font-weight:700;background:var(--panel);cursor:pointer}
+.seg.sel{background:linear-gradient(180deg,#9d7cf0,#6a48c8);color:#fff}
+.sum{font-size:11px;color:var(--dim);line-height:1.7;margin:8px 0;text-align:center;width:min(430px,96vw)}
+</style>
+<style>
+.stat-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column;align-items:center;background:#00000050;border:1px solid var(--line);
+ border-radius:10px;padding:6px 12px;min-width:88px}
+.stat .k{font-size:10px;color:var(--dim)}
+.stat .v{font-size:16px;font-weight:800;color:var(--gold)}
+.menu-panel{margin-top:auto;margin-bottom:auto;align-items:stretch}
+#m-title{text-align:center;font-size:30px;font-weight:900;color:var(--vio);text-shadow:0 0 18px #7c5cd680,0 2px 0 #000}
+#m-sub{text-align:center;font-size:11px;color:var(--dim);letter-spacing:4px;margin:-4px 0 6px}
+.sub-row{display:flex;gap:6px}
+.uprows{display:flex;flex-direction:column;gap:8px;width:min(560px,97vw);padding:2px}
+.uprow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;
+ align-items:center;gap:10px}
+.uprow.sp{border-color:#5844a0;background:#1e1836}
+.uprow .ic{width:34px;height:34px;flex:0 0 34px;border-radius:8px;background:#00000060;border:1px solid var(--line)}
+.uprow .bd{flex:1;min-width:0}
+.uprow .nm{font-size:13px;font-weight:800}
+.uprow .ds{font-size:11px;color:var(--dim)}
+.uprow .ef{font-size:11px;color:var(--grn)}
+.pips{display:flex;gap:3px;margin-top:4px}
+.pip{width:14px;height:6px;border-radius:3px;background:#00000070;border:1px solid var(--line)}
+.pip.on{background:var(--vio);border-color:var(--vio)}
+.uprow .btn{flex:0 0 auto;min-width:96px;font-size:12px;padding:10px 8px}
+.chrow{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin:6px 0}
+.chrow canvas{width:40px;height:36px;border-radius:8px;background:#00000060;border:1px solid var(--line);cursor:pointer}
+.chrow canvas.sel{outline:2px solid var(--vio)}
+.lucrow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:min(700px,96vw)}
+.lucard{width:calc(33% - 8px);min-width:180px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+ padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:center}
+.lucard.sp{border-color:#5844a0;background:#1e1836;box-shadow:0 0 14px #7c5cd640}
+.lucard canvas{width:44px;height:44px}
+.lucard .nm{font-size:14px;font-weight:800;color:var(--vio)}
+.lucard.lvsp .nm{color:#c9a2ff}
+.lucard .lv{font-size:11px;color:var(--gold)}
+.lucard .ef{font-size:11px;color:var(--txt);line-height:1.6}
+.slotlist{display:flex;flex-direction:column;gap:8px;width:min(430px,96vw)}
+.slotrow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;
+ align-items:center;gap:8px;font-size:12px}
+.slotrow .bd{flex:1}
+.slotrow .btn{flex:0 0 auto;font-size:11px;padding:7px 9px}
+.slotrow .btn.fat{flex:1;font-size:13px;padding:10px}
+.slotrow.bads{border-color:#7a2733}
+.empty-slots{color:var(--dim);font-size:12px;text-align:center}
+#toasts{position:absolute;bottom:64px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:6px;
+ z-index:60;pointer-events:none}
+.toast{background:#211a38ee;border:1px solid var(--vio);color:#fff;border-radius:999px;padding:8px 18px;font-size:13px;
+ font-weight:700;box-shadow:0 4px 18px #000a;animation:tst 2.4s forwards}
+@keyframes tst{0%{opacity:0;transform:translateY(10px)}10%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+#ov-err{background:#140810f0}
+#err-box{background:var(--panel);border:1px solid #7a2733;border-radius:14px;padding:16px;width:min(400px,94vw);
+ display:flex;flex-direction:column;gap:10px;text-align:center}
+#err-msg{font-size:12px;color:#ffb4bd;word-break:break-word;max-height:120px;overflow-y:auto}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:#0d0b14}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#7c5cd6,#4a3a80);border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:var(--vio)}
+*{scrollbar-width:thin;scrollbar-color:#7c5cd6 #0d0b14}
+#joy{position:absolute;z-index:4;pointer-events:none;display:none}
+.row{display:flex;gap:8px}
+.row .btn{flex:1}
+#scr-exit .panel{align-items:center}
+@media (orientation:landscape) and (max-height:540px){
+ .scr{padding:8px 8px 8px}
+ .menu-panel{width:min(680px,92vw)}
+ .ccard{width:calc(20% - 4px)}
+ .mcard{width:calc(20% - 4px)}
+ .lucard{width:calc(30% - 8px);min-width:150px}
+ #m-title{font-size:22px}
+ .btn{padding:9px 12px;font-size:13px}
+ .hbtn{width:32px;height:28px;font-size:12px}
+ #h-wchip{bottom:4px;padding:3px 8px}
+ #h-wico{width:26px;height:26px;flex:0 0 26px}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+ <div id="h-top">
+  <div id="h-xpwrap" class="bar"><div id="h-xpfill" class="fill"></div></div>
+  <div id="h-row">
+   <span id="h-lvl">م1</span><span id="h-time">0:00</span><span id="h-kills">0</span>
+   <div id="h-btns"><button id="h-snd" class="hbtn">🔊</button><button id="h-pause" class="hbtn">⏸</button></div>
+  </div>
+  <div id="h-hpwrap" class="bar"><div id="h-hpfill" class="fill"></div><span id="h-hptxt">100</span></div>
+ </div>
+ <div id="h-wchip"><canvas id="h-wico" width="36" height="36"></canvas>
+  <div><div id="h-wname"></div><div id="h-watk"></div><div id="h-wstats" class="dim"></div></div></div>
+</div>
+<div id="scr-menu" class="scr on">
+ <div class="panel menu-panel">
+  <div id="m-title">ناجٍ من الليل</div>
+  <div id="m-sub">NIGHT SURVIVOR</div>
+  <div class="stat-row">
+   <div class="stat"><span class="k">أفضل وقت</span><span id="m-best" class="v">0:00</span></div>
+   <div class="stat"><span class="k">الذهب</span><span id="m-gold" class="v">0</span></div>
+   <div class="stat"><span class="k">القتلات</span><span id="m-kills" class="v">0</span></div>
+  </div>
+  <button id="m-start" class="btn pri big">ابدأ لعبة جديدة</button>
+  <button id="m-cont" class="btn">أكمل <span id="m-cont-n">(0/5)</span></button>
+  <div class="row"><button id="m-set" class="btn">الإعدادات</button><button id="m-exit" class="btn danger">الخروج</button></div>
+  <div class="sub-row">
+   <button id="m-sk" class="btn sm">شجرة المهارات</button>
+   <button id="m-wp" class="btn sm">الأسلحة</button>
+   <button id="m-ch" class="btn sm">الشخصية</button>
+  </div>
+  <div id="m-keep" class="chip keep" style="display:none"></div>
+ </div>
+</div>
+<div id="scr-new" class="scr op">
+ <div class="topbar"><button id="ng-back" class="btn sm">رد</button><div class="ttl">لعبة جديدة</div><span id="ng-diff" class="chip">سهل</span></div>
+ <div class="sec-t">اختر بطلاً (كل شخصية بسلاح أوتوماتيكي واحد)</div>
+ <div id="char-grid" class="cgrid"></div>
+ <div class="sec-t">اختر الخريطة</div>
+ <div id="map-grid" class="mgrid"></div>
+ <button id="ng-start" class="btn pri big" style="margin-top:14px;width:min(430px,96vw)">ابدأ</button>
+</div>
+<div id="scr-set" class="scr op">
+ <div class="topbar"><button id="set-back" class="btn sm">رد</button><div class="ttl">الإعدادات</div><span style="width:44px"></span></div>
+ <div class="sec-t">الصعوبة</div>
+ <div id="set-diff" class="segwrap"></div>
+ <div id="set-sum" class="sum"></div>
+ <div class="row" style="width:min(430px,96vw)">
+  <button id="set-snd" class="btn">الصوت: مفعّل</button>
+  <button id="set-fs" class="btn">ملء الشاشة</button>
+ </div>
+ <button id="set-wipe" class="btn danger" style="width:min(430px,96vw);margin-top:14px">مسح كل البيانات</button>
+</div>
+<div id="scr-exit" class="scr op">
+ <div class="panel" style="align-items:center">
+  <div class="ov-t">إلى اللقاء!</div>
+  <div class="dim" style="font-size:12px;text-align:center">نتمنى أن تعود لتصمد في وجه الليل مرة أخرى.</div>
+  <button id="ex-back" class="btn pri">العودة للقائمة</button>
+ </div>
+</div>
+</body>
+<div id="scr-slots" class="scr op">
+ <div class="topbar"><button id="sl-back" class="btn sm">رد</button><div class="ttl">فتحات الحفظ</div><span style="width:44px"></span></div>
+ <div id="sl-list" class="slotlist"></div>
+</div>
+<div id="scr-pause" class="scr" style="background:#0d0b14d0">
+ <div class="panel" style="align-items:center">
+  <div class="ov-t">إيقاف مؤقت</div>
+  <button id="p-res" class="btn pri" style="width:100%">متابعة</button>
+  <div class="row" style="width:100%">
+   <button id="p-fs" class="btn sm">ملء الشاشة</button>
+   <button id="p-snd" class="btn sm">الصوت: مفعّل</button>
+  </div>
+  <div class="sec-t" style="margin-top:6px">حفظ والخروج — اختر فتحة</div>
+  <div id="p-slots" class="slotlist"></div>
+  <button id="p-quit" class="btn danger" style="width:100%;margin-top:6px">إنهاء الجولة وتحصيل الذهب</button>
+ </div>
+</div>
+<div id="ov-lu" class="ov">
+ <div class="ov-t">ترقية المستوى!</div>
+ <div class="dim" style="font-size:11px;margin:4px 0 10px">اختر ميزة واحدة (المفاتيح 1 / 2 / 3)</div>
+ <div id="lu-cards" class="lucrow"></div>
+</div>
+<div id="scr-death" class="scr" style="background:#160b12ee">
+ <div class="panel" style="align-items:center">
+  <div class="ov-t red">لقد سقطت!</div>
+  <div id="d-stats" class="stat-row"></div>
+  <div class="sec-t" style="margin-top:8px">اختر ميزة واحدة لتحملها في الجولة القادمة (اضغط مرتين لإلغاء الاختيار)</div>
+  <div id="d-carry" class="chiprow"></div>
+  <button id="d-rev" class="btn pri" style="width:100%">إحياء</button>
+  <button id="d-menu" class="btn" style="width:100%">القائمة الرئيسية</button>
+  <div class="row" style="width:100%">
+   <button id="d-sk" class="btn sm">شجرة المهارات</button>
+   <button id="d-wp" class="btn sm">الأسلحة</button>
+   <button id="d-ch" class="btn sm">الشخصية</button>
+  </div>
+ </div>
+</div>
+<div id="scr-vict" class="scr" style="background:#0e1416ee">
+ <div class="panel" style="align-items:center;border-color:#3d6e4a">
+  <div class="ov-t grn">نجوت من الليل!</div>
+  <div class="stat-row" id="v-stats"></div>
+  <div class="chip gold">+100 ذهب مكافأة النجاة</div>
+  <button id="v-replay" class="btn pri" style="width:100%">إعادة اللعب</button>
+  <button id="v-menu" class="btn" style="width:100%">القائمة الرئيسية</button>
+  <button id="v-sk" class="btn sm" style="width:100%">شجرة المهارات</button>
+ </div>
+</div>
+<div id="ov-up" class="ov" style="justify-content:flex-start;overflow-y:auto;padding-top:10px">
+ <div class="topbar" style="max-width:560px"><button id="up-back" class="btn sm">رد</button>
+  <div class="ttl" id="up-title"></div><span id="up-gold" class="chip gold">0</span></div>
+ <div id="up-chars" class="chrow" style="width:min(560px,97vw)"></div>
+ <div id="up-rows" class="uprows"></div>
+</div>
+<div id="ov-err" class="ov"><div id="err-box">
+ <div class="ov-t red">خطأ غير متوقع</div>
+ <div id="err-msg"></div>
+ <button id="err-resume" class="btn pri">استئناف</button>
+ <button id="err-quit" class="btn danger">الخروج للقائمة</button>
+</div></div>
+<div id="toasts"></div>
+<script>
+'use strict';
+var $=function(id){return document.getElementById(id)};
+function mkel(tag,cls,parent,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;if(parent)parent.appendChild(e);return e;}
+function clamp(v,a,b){return v<a?a:(v>b?b:v)}
+function fmtT(s){s=Math.floor(s);var m=Math.floor(s/60);var r=s%60;return m+':'+(r<10?'0':'')+r}
+var CHARS=[
+{id:'necro',name:'مستحضر الأرواح',weapon:'كتاب السحر الأسود',attack:'كرة السحر الأسود',kind:'orb',dmg:14,ps:260,cd:0.85,rng:520,pierce:2,life:2.2,br:9,home:0.9,col:'#a78bfa',flags:{hood:1,cloak:1,book:1,face:'skull'}},
+{id:'mage',name:'الساحر',weapon:'العصا السحرية',attack:'كرة سحر النار',kind:'fire',dmg:12,ps:320,cd:0.70,rng:560,pierce:1,life:1.8,br:8,splash:48,col:'#ff7a1a',flags:{hat:1,robe:1,staff:1,face:'eyes'}},
+{id:'assassin',name:'المغتال',weapon:'الخنجر',attack:'رمي السكاكين',kind:'knife',dmg:7,ps:560,cd:0.50,rng:420,pierce:1,life:0.9,br:4,count:2,spread:0.14,col:'#e8ecf2',flags:{mask:1,cloak:1,daggers:1,face:'eyes'}},
+{id:'reaper',name:'حاصد الأرواح',weapon:'المنجل',attack:'كرة الروح',kind:'soul',dmg:16,ps:240,cd:0.90,rng:500,pierce:3,life:2.4,br:11,home:0.5,col:'#39d5ff',flags:{hood:1,scythe:1,cloak:1,face:'eyes'}},
+{id:'knight',name:'الفارس',weapon:'السيف',attack:'ضربة السيف',kind:'melee',dmg:20,ps:0,cd:0.75,rng:95,arc:1.9,swing:0.22,kb:50,col:'#cfd6e0',flags:{helmet:1,armor:1,sword:1,face:'visor'}},
+{id:'archer',name:'رامي الأسهم',weapon:'القوس والسهم',attack:'رمي الأسهم',kind:'arrow',dmg:10,ps:620,cd:0.60,rng:640,pierce:2,life:1.1,br:4,col:'#a3e635',flags:{cap:1,bow:1,face:'eyes'}},

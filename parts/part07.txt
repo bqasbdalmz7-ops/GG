@@ -1,0 +1,278 @@
+ $('h-hpfill').style.width=(clamp(R.hp/R.mhp,0,1)*100)+'%';
+ $('h-hptxt').textContent=Math.ceil(R.hp)+' / '+R.mhp;
+ $('h-lvl').textContent='م'+R.lvl;
+ $('h-time').textContent=fmtT(Math.max(0,1200-R.t));
+ $('h-kills').textContent=''+R.kills;
+ $('h-wstats').textContent='ضرر '+Math.round(R.w.dmg)+' · تبريد '+R.w.cd.toFixed(2)+'ث · مدى '+Math.round(R.w.rng);
+}
+function refreshWeapChip(){
+ if(!R)return;
+ S.hudW=R.ch;
+ var ch=CHARS[R.ch],g=$('h-wico').getContext('2d');
+ g.fillStyle='rgba(0,0,0,0)';
+ g.fillRect(0,0,1,1);
+ g.fillStyle=ch.col;
+ g.fillRect(14,6,8,24);g.fillRect(10,10,16,4);
+ g.fillStyle='#08060c';g.fillRect(16,8,4,20);
+ $('h-wname').textContent='سلاح: '+ch.weapon;
+ $('h-watk').textContent=ch.attack;
+ $('h-wstats').textContent='';
+}
+function refreshMenu(){
+ $('m-best').textContent=fmtT(S.save.best);
+ $('m-gold').textContent=fmtN(S.save.coins);
+ $('m-kills').textContent=fmtN(S.save.kills);
+ var n=countSlots();
+ $('m-cont-n').textContent='('+n+'/5)';
+ $('m-cont').disabled=(n===0);
+ var k=S.save.keep;
+ if(k&&UPGS[k.id]){$('m-keep').style.display='';
+  $('m-keep').textContent='سيُحمل في الجولة القادمة: '+UPGS[k.id].name+' (م'+k.lvl+')';}
+ else $('m-keep').style.display='none';
+}
+function buildNewGame(){
+ var g=$('char-grid');g.textContent='';
+ CHARS.forEach(function(ch,i){
+  var c=mkel('div','ccard'+(i===S.sel.ch?' sel':''),g);
+  var cv=document.createElement('canvas');cv.width=28;cv.height=24;
+  var gg=cv.getContext('2d');gg.imageSmoothingEnabled=false;
+  gg.drawImage(heroSpr[ch.id][0],0,0,28,24);
+  c.appendChild(cv);
+  mkel('div','nm',c,ch.name);
+  mkel('div','wp',c,'سلاح: '+ch.weapon);
+  mkel('div','at',c,ch.attack);
+  mkel('div','st',c,'ضرر '+ch.dmg+' · مدى '+ch.rng+' · تبريد '+ch.cd+'ث'+(ch.ps?' · قذيفة '+ch.ps:''));
+  c.onclick=function(){S.sel.ch=i;buildNewGame();sfx('click')};
+ });
+ var g2=$('map-grid');g2.textContent='';
+ MAPS.forEach(function(m,i){
+  var c=mkel('div','mcard'+(i===S.sel.mp?' sel':''),g2);
+  var cv=document.createElement('canvas');cv.width=45;cv.height=30;
+  var gg=cv.getContext('2d');
+  gg.fillStyle=m.bg;gg.fillRect(0,0,45,30);
+  if(tileC[m.id]){gg.save();gg.imageSmoothingEnabled=false;
+   gg.drawImage(tileC[m.id],0,0,45,30);gg.restore()}
+  if(decoSpr[m.deco]&&decoSpr[m.deco][0])gg.drawImage(decoSpr[m.deco][0],10,-2,32,32);
+  c.appendChild(cv);
+  mkel('div','nm',c,m.name);
+  mkel('div','mul',c,'×'+m.mul+' سرعة وتوليد');
+  c.onclick=function(){S.sel.mp=i;buildNewGame();sfx('click')};
+ });
+ $('ng-diff').textContent=DIFFS[S.save.df].name;
+}
+function refreshNew(){buildNewGame()}
+function buildSet(){
+ var w=$('set-diff');w.textContent='';
+ DIFFS.forEach(function(d,i){
+  var s=mkel('div','seg'+(i===S.save.df?' sel':''),w,d.name);
+  s.onclick=function(){S.save.df=i;persist();buildSet();refreshSndSummary();sfx('click')};
+ });
+}
+function refreshSndSummary(){
+ var d=DIFFS[S.save.df];
+ $('set-sum').textContent=d.name+': توليد '+d.sa+'+زمن/'+d.sb+' · حياة الأعداء ×(1+زمن/'+d.hd+')'+
+  ' · حد '+d.cap+' · تلامس ×'+d.ct+' · مفخخ '+d.bm+' · خبرة ×'+d.nd+' · زعيم '+d.b0+'+'+d.b1+'ن · سرعة ×'+d.sm;
+}
+function refreshSet(){
+ buildSet();refreshSndSummary();refreshSndBtns();
+}
+function refreshPause(){
+ refreshSndBtns();
+ var w=$('p-slots');w.textContent='';
+ for(var i=0;i<5;i++){
+  (function(i){
+   var s=slotRead(i),row=mkel('div','slotrow',w);
+   var b=mkel('button','btn fat',row,'فتحة '+(i+1)+(s&&s.s?' — '+runTimeLabel(s):' — فارغة'));
+   b.onclick=function(){saveRunSlot(i)};
+  })(i);
+ }
+}
+function saveRunSlot(i){
+ if(!R)return;
+ slotWrite(i,{s:snapRun(),mp:R.mp,df:R.df,ch:R.ch});
+ S.slot=i;
+ toast('حفظت في الفتحة '+(i+1));
+ S.scr='menu';S.run=R;showScreen();
+}
+function quitRun(){
+ if(R){bankGold(0);persist();
+  if(S.slot>=0)slotClear(S.slot);
+  toast('تحصيل الذهب: +'+runGold(R));}
+ R=null;S.carrySel=null;S.slot=-1;S.scr='menu';showScreen();
+}
+function buildSlots(){
+ var w=$('sl-list');w.textContent='';
+ for(var i=0;i<5;i++){
+  (function(i){
+   var s=slotRead(i),row=mkel('div','slotrow'+(s&&s.corrupt?' bads':''),w);
+   if(!s){mkel('div','dim',row,'فتحة '+(i+1)+' — فارغة');return}
+   if(s.corrupt){
+    mkel('div','bd',row,'فتحة '+(i+1)+' — بيانات تالفة');
+    var del=mkel('button','btn',row,'حذف');
+    del.onclick=function(){slotClear(i);buildSlots();toast('حذفت الفتحة')};
+    return;
+   }
+   mkel('div','bd',row,'فتحة '+(i+1)+' — '+runTimeLabel(s));
+   var ld=mkel('button','btn pri',row,'تحميل');
+   ld.onclick=function(){loadSlotRun(i)};
+   var del2=mkel('button','btn danger',row,'حذف');
+   del2.onclick=function(){slotClear(i);buildSlots();toast('حذفت الفتحة')};
+  })(i);
+ }
+ if(w.children.length===0)mkel('div','empty-slots',w,'لا توجد فتحات محفوظة');
+}
+function loadSlotRun(i){
+ var o=slotRead(i);
+ if(!o){toast('الفتحة فارغة');return}
+ if(o.corrupt){toast('الفتحة تالفة — تعذر التحميل');return}
+ S.slot=i;
+ try{resumeRun(o)}catch(e){toast('تعذر إصلاح الفتحة');return}
+ S.carrySel=null;S.hudW=undefined;
+ S.scr='playing';showScreen();
+ toast('استئناف الجولة');
+}
+function drawItemIcon(cv2,it){
+ var g=cv2.getContext('2d');
+ var col=it.cat==='sp'?'#c9a2ff':(it.cat==='cu'?'#a78bfa':(it.cat==='wu'?'#ffd54a':'#7de07d'));
+ g.fillStyle=col;g.beginPath();
+ g.moveTo(cv2.width/2,2);g.lineTo(cv2.width-2,cv2.height/2);
+ g.lineTo(cv2.width/2,cv2.height-2);g.lineTo(2,cv2.height/2);g.fill();
+ g.fillStyle=shadeHex(col,1.4);g.fillRect(cv2.width/2-2,3,4,4);
+}
+function refreshUp(){
+ $('up-gold').textContent=fmtN(S.save.coins)+' ذهب';
+ $('up-title').textContent=S.up.mode==='cu'?'صفات الشخصية':(S.up.mode==='wu'?'صفات السلاح':'شجرة المهارات');
+ var w=$('up-chars');w.textContent='';
+ CHARS.forEach(function(ch,i){
+  var cv=document.createElement('canvas');cv.width=20;cv.height=18;
+  var gg=cv.getContext('2d');gg.imageSmoothingEnabled=false;
+  gg.drawImage(heroSpr[ch.id][0],0,0,20,18);
+  if(i===S.up.ch)cv.classList.add('sel');
+  cv.onclick=function(){S.up.ch=i;refreshUp();sfx('click')};
+  w.appendChild(cv);
+ });
+ var rows=$('up-rows');rows.textContent='';
+ var list=UPLIST.filter(function(id){return UPGS[id].cat===S.up.mode});
+ UPLIST.filter(function(id){return UPGS[id].cat==='sp'&&UPGS[id].sp===CHARS[S.up.ch].id})
+  .forEach(function(id){list.push(id)});
+ list.forEach(function(id){
+  var it=UPGS[id],m=it.cat==='sp'?(S.save.sp[it.sp]||{}):S.save[it.cat];
+  var lv=m[id]||0,mxd=lv>=5;
+  var cost=mxd?0:costOf(it,lv);
+  var row=mkel('div','uprow'+(it.cat==='sp'?' sp':''),rows);
+  var ic=document.createElement('canvas');ic.className='ic';ic.width=17;ic.height=17;
+  drawItemIcon(ic,it);row.appendChild(ic);
+  var bd=mkel('div','bd',row);
+  mkel('div','nm',bd,it.name+(it.sp?' ('+CHARS[S.up.ch].name+')':''));
+  mkel('div','ds',bd,it.fx);
+  mkel('div','ef',bd,it.cat==='sp'?'خاص بهذا البطل':'حالي: م'+lv+' / الحد '+capOf(id,S.save,S.up.ch));
+  var pips=mkel('div','pips',bd);
+  for(var q=0;q<5;q++)mkel('div','pip'+(q<lv?' on':''),pips);
+  var b=mkel('button','btn',row,mxd?'★':(fmtN(cost)+' ذهب'));
+  b.disabled=mxd||S.save.coins<cost;
+  b.onclick=function(){
+   if(b.disabled)return;
+   S.save.coins-=cost;
+   if(it.cat==='sp'){var mp=S.save.sp[it.sp]||(S.save.sp[it.sp]={});mp[id]=lv+1}
+   else S.save[it.cat][id]=lv+1;
+   persist();sfx('buy');toast('اشتريت: '+it.name+' م'+(lv+1));refreshUp();
+  };
+ });
+}
+function showError(err){
+ SCREENS.forEach(function(s){$(s).classList.remove('on')});
+ $('ov-up').classList.remove('on');$('ov-lu').classList.remove('on');$('hud').classList.remove('on');
+ $('ov-err').classList.add('on');
+ $('err-msg').textContent=(err&&err.message)?err.message:String(err);
+}
+var wipeArm=0;
+function doPause(){
+ if(!R)return;
+ if(S.scr==='playing'){S.scr='pause';showScreen();sfx('click')}
+}
+function doResume(){
+ if(S.scr==='pause'){S.scr='playing';showScreen();sfx('click')}
+}
+function goMenu(){
+ S.scr='menu';S.run=null;showScreen();
+}
+function openUp(mode,ch){
+ S.up.mode=mode;S.up.ch=(ch!==undefined?ch:(R?R.ch:S.save.ch));
+ S.ret=S.scr;
+ S.scr='up';showScreen();sfx('click');
+}
+function closeUp(){
+ S.scr=(S.ret==='death')?'death':'menu';
+ showScreen();
+ if(S.scr==='death')fillDeath();
+}
+function fullScr(){
+ try{
+  if(document.fullscreenElement){document.exitFullscreen&&document.exitFullscreen()}
+  else{var de=document.documentElement;
+   if(de.requestFullscreen)de.requestFullscreen();
+   else if(window.scrollTo)window.scrollTo(0,0);}
+ }catch(e){toast('ملء الشاشة غير مدعوم')}
+}
+function bindUI(){
+ $('m-start').onclick=function(){S.scr='new';showScreen();sfx('click')};
+ $('m-cont').onclick=function(){S.scr='slots';showScreen();sfx('click')};
+ $('m-set').onclick=function(){S.scr='set';showScreen();sfx('click')};
+ $('m-exit').onclick=function(){S.scr='exit';showScreen();musicStop();sfx('click');
+  try{window.close()}catch(e){}};
+ $('ng-back').onclick=function(){S.scr='menu';showScreen();sfx('click')};
+ $('ng-start').onclick=function(){
+  S.slot=-1;S.carrySel=null;S.hudW=undefined;
+  startRun(S.sel.ch,S.sel.mp,S.save.df);
+  S.scr='playing';showScreen();sfx('buy');
+ };
+ $('set-back').onclick=function(){S.scr='menu';showScreen();sfx('click')};
+ $('set-snd').onclick=function(){aInit();aToggle()};
+ $('set-fs').onclick=fullScr;
+ $('set-wipe').onclick=function(){
+  if(!wipeArm){wipeArm=1;$('set-wipe').textContent='متأكد؟ اضغط مجدداً للمسح';
+   setTimeout(function(){wipeArm=0;$('set-wipe').textContent='مسح كل البيانات'},3000);return}
+  wipeArm=0;$('set-wipe').textContent='مسح كل البيانات';
+  try{localStorage.clear()}catch(e){}
+  loadSave();refreshMenu();toast('مسحت كل البيانات');
+ };
+ $('ex-back').onclick=function(){S.scr='menu';showScreen();sfx('click')};
+ $('sl-back').onclick=function(){S.scr='menu';showScreen();sfx('click')};
+ $('h-pause').onclick=doPause;
+ $('h-snd').onclick=function(){aInit();aToggle()};
+ $('p-res').onclick=doResume;
+ $('p-fs').onclick=fullScr;
+ $('p-snd').onclick=function(){aInit();aToggle()};
+ $('p-quit').onclick=function(){quitRun()};
+ $('d-rev').onclick=function(){doRevive()};
+ $('d-menu').onclick=function(){S.carrySel=null;R=null;S.scr='menu';showScreen()};
+ $('d-sk').onclick=function(){openUp('sk')};
+ $('d-wp').onclick=function(){openUp('wu')};
+ $('d-ch').onclick=function(){openUp('cu')};
+ $('up-back').onclick=closeUp;
+ $('v-replay').onclick=function(){S.slot=-1;startRun(S.sel.ch,S.sel.mp,S.save.df);S.hudW=undefined;S.scr='playing';showScreen();sfx('buy')};
+ $('v-menu').onclick=function(){S.scr='menu';showScreen()};
+ $('v-sk').onclick=function(){openUp('sk')};
+ $('err-resume').onclick=function(){
+  $('ov-err').classList.remove('on');
+  if(R&&(S.scr==='death'||S.scr==='playing'||S.scr==='pause'))showScreen();
+  else goMenu();
+ };
+}
+function init(){
+ cvs=$('cv');ctx=cvs.getContext('2d');
+ S.save=loadSave();
+ AU.muted=!S.save.snd;
+ resize();
+ window.addEventListener('resize',resize);
+ bakeHero();bakeEnemies();bakeDeco();bakeTiles();bakeVig();
+ bindInput();bindUI();
+ refreshSndBtns();
+ showScreen();
+ requestAnimationFrame(frame);
+ document.addEventListener('gesturestart',function(e){e.preventDefault()});
+}
+init();
+</script>
+</body>
+</html>
