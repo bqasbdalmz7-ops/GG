@@ -1,0 +1,300 @@
+ opt=opt||{};
+ S.sel.ch=chIdx;S.sel.mp=mpIdx;
+ R={ch:chIdx,mp:mpIdx,df:dfIdx,t:0,kills:0,hp:100,mhp:100,xp:0,xpN:5,lvl:1,
+  px:0,py:0,vx:0,vy:0,face:1,fr:0,frT:0,hop:0,lean:0,squash:1,
+  u:{},wt:0.5,swT:0,swDir:0,swAng:0,swHit:{},
+  en:[],bs:[],ebs:[],gems:[],parts:[],clouds:[],af:[],
+  rev:0,untouchT:0,voidT:0,bossN:0,bosses:[],boss:null,
+  spawnAcc:0,dustT:0,goldE:0,banked:0,shakeless:true,pend:0,
+  rs:1+((Date.now()%2147483647+1)|0)%2147483646};
+ if(SAVE_VERSION()&&S.save&&opt.resume!==true&&S.save.keep){
+  var k=S.save.keep;
+  if(UPGS[k.id]&&(UPGS[k.id].cat==='sk'||UPGS[k.id].sp===CHARS[chIdx].id)){
+   R.u[k.id]=Math.min(k.lvl,capOf(k.id,S.save,chIdx));
+  }
+ }
+ var d=DIFFS[dfIdx];
+ calcStats(R);
+ R.hp=R.mhp;
+ return R;
+}
+function calcStats(run){
+ var r=run||R;if(!r)return;
+ var ch=CHARS[r.ch];
+ function L(id){return r.u[id]||0}
+ r.mhp=100+12*L('vit');
+ r.spd=150*(1+0.06*L('spd'));
+ r.magnet=70*(1+0.2*L('mag'));
+ r.defMul=Math.max(0.30,1-0.07*L('def'));
+ r.dodge=Math.min(0.6,0.05*L('dod'));
+ r.regenR=0.004*L('reg');
+ r.goldMul=1+0.12*L('tre');
+ r.xpMul=1+0.10*L('wis');
+ r.blockC=Math.min(0.5,0.06*L('kn1'));
+ r.kbMul=1+0.2*L('kn0');
+ var spD=1,spCd=1;
+ if(ch.id==='necro')spD*=1+0.12*L('ne0');
+ if(ch.id==='berserk')spCd*=1-0.05*L('be1');
+ if(ch.id==='archer'&&ch.cd>0){}
+ r.w={};
+ r.w.dmg=ch.dmg*(1+0.08*L('pow'))*(1+0.10*L('wdm'))*(1+0.09*L('atk'))*spD;
+ r.w.cd=Math.max(0.08,ch.cd*(1-0.06*L('foc'))*(1-0.06*L('wcd'))*spCd);
+ r.w.rng=ch.rng*(1+0.08*L('rea'))*(1+0.08*L('war'));
+ r.w.area=1+0.08*L('war');
+ r.w.ps=ch.ps*(1+0.08*L('wsp'));
+ var pr=L('wpr');
+ if(ch.kind==='melee')r.w.arc=(ch.arc||1.9)*(1+0.10*pr)*(1+0.08*L('war'));
+ else r.w.pierce=(ch.pierce||0)+pr;
+ if(ch.id==='reaper')r.w.pierce=(ch.pierce||0)+pr+L('rp1');
+ if(ch.id==='archer'&&ch.kind==='arrow')r.w.pierce=(ch.pierce||0)+pr+L('ar1');
+ if(ch.id==='sniper')r.w.pierce=(ch.pierce||0)+pr+L('sn0');
+ r.w.count=(ch.count||1);
+ if(ch.id==='assassin')r.w.count=2+(L('as1')>=3?1:0)+(L('as1')>=5?1:0);
+ r.w.swing=(ch.swing||0.22)/(1+0.08*L('wsp'));
+ r.w.splash=(ch.splash||0)*(1+0.14*L('mg1'))*(1+0.08*L('war'));
+ r.w.home=ch.home||0;
+ r.w.critC=0;r.w.critM=1;
+ if(ch.id==='archer'){r.w.critC=0.06*L('ar0');r.w.critM=2}
+ if(ch.id==='sniper'){r.w.critC=0.08*L('sn1');r.w.critM=2.5}
+ r.voidEvery=Math.max(5,12-L('void'));
+ r.voidDur=0.5+0.35*L('void');
+ r.cld={r:(ch.cloud||0)*(1+0.14*L('mg1')),dur:(ch.cloudDur||0)+0.5*L('pl0'),
+  dmg:(ch.cloudTick||0)*(1+0.15*L('pl1')),every:(ch.cloudEvery||0.5)};
+ if(r.hp>r.mhp)r.hp=r.mhp;
+}
+function dmgOf(){
+ var m=1;
+ if(CHARS[R.ch].id==='berserk'&&(R.u.be0||0)>0&&R.hp<R.mhp*0.5)m*=1+0.08*R.u.be0;
+ return R.w.dmg*m;
+}
+function xpNeed(){return Math.floor(R.xpN*DIFFS[R.df].nd+4)}
+function gainXP(v){
+ R.xp+=v*R.xpMul;
+ var leveled=false;
+ while(R.xp>=R.xpN){R.xp-=R.xpN;R.lvl++;R.xpN=xpNeedNext(R.xpN);R.pend++;leveled=true}
+ if(R.pend>0)tryOpenLevelUp();
+ else if(leveled)sfx('lvlup');
+}
+function xpNeedNext(prev){return Math.floor(prev*DIFFS[R.df].nd+4)}
+function availUpgrades(){
+ var list=[];
+ UPLIST.forEach(function(id){var it=UPGS[id];
+  var cap=capOf(id,S.save,R.ch),cur=R.u[id]||0;
+  if(cap>cur)list.push(id)});
+ return list;
+}
+function tryOpenLevelUp(){
+ if(R.pend<=0)return;
+ var pool=availUpgrades();
+ if(pool.length===0){toast('لا توجد ترقيات مشتراة بعد!');R.pend=0;sfx('lvlup');return}
+ openLevelUp();
+}
+function openLevelUp(){
+ var pool=availUpgrades().slice();
+ for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=pool[i];pool[i]=pool[j];pool[j]=t}
+ var picks=pool.slice(0,3);
+ S.luPicks=picks;S.scr='lu';showScreen();
+ var box=$('lu-cards');box.textContent='';
+ picks.forEach(function(id,i){
+  var it=UPGS[id],cur=R.u[id]||0;
+  var card=mkel('div','lucard'+(it.cat==='sp'?' sp lvsp':''),box);
+  var ic=document.createElement('canvas');ic.width=22;ic.height=22;card.appendChild(ic);
+  drawItemIcon(ic,it);
+  mkel('div','nm',card,it.name);
+  mkel('div','lv',card,'م'+cur+' ← م'+(cur+1)+' / الحد '+capOf(id,S.save,R.ch));
+  mkel('div','ef',card,it.fx);
+  card.onclick=function(){pickLevelUp(i)};
+ });
+}
+function pickLevelUp(i){
+ var id=S.luPicks&&S.luPicks[i];if(!id)return;
+ R.u[id]=(R.u[id]||0)+1;
+ calcStats(R);R.hp=Math.min(R.hp,R.mhp);
+ sfx('buy');toast(UPGS[id].name+' → م'+R.u[id]);
+ R.pend--;
+ if(R.pend>0&&availUpgrades().length>0){openLevelUp();return}
+ R.pend=0;S.scr='playing';showScreen();
+}
+
+function endRun(win){
+ if(!R)return;
+ bankGold(win?100:0);
+ if(win){if(R.t>S.save.best)S.save.best=Math.floor(R.t);S.save.kills+=R.kills;persist();
+  $('v-stats').textContent='';fillStats($('v-stats'),R);
+  S.scr='vict';showScreen();musicStop();sfx('win');
+ }else{
+  fillDeath();S.scr='death';showScreen();musicStop();sfx('lose');
+ }
+}
+function fillStats(box,r){
+ box.textContent='';
+ addStat(box,'المستوى',r.lvl);
+ addStat(box,'القتلات',r.kills);
+ addStat(box,'الوقت',fmtT(r.t));
+ addStat(box,'الذهب المكتسب',runGold(r)+(r.goldE>0?'+'+fmtN(runGold(r)):''));
+}
+function addStat(box,k,v){var d=mkel('div','stat',box);mkel('span','k',d,k);mkel('span','v',d,String(v))}
+function fillDeath(){
+ $('d-stats').textContent='';fillStats($('d-stats'),R);
+ var box=$('d-carry');box.textContent='';
+ var items=Object.keys(R.u).filter(function(id){return R.u[id]>0});
+ if(items.length===0)mkel('div','dim',box,'لا ميزات مكتسبة في هذه الجولة');
+ items.forEach(function(id){
+  var it=UPGS[id],cap=capOf(id,S.save,R.ch);
+  var c=mkel('div','chip'+(S.carrySel===id?' sel':''),box,
+   it.name+' م'+R.u[id]+' (الحد '+cap+')');
+  c.onclick=function(){if(S.carrySel===id){S.carrySel=null;S.save.keep=null}
+   else{S.carrySel=id;S.save.keep={id:id,lvl:Math.min(R.u[id],cap)}}persist();fillDeath();toast('سيُحمل: '+it.name)};
+ });
+ var rc=[100,250][R.rev]||0,bb=$('d-rev');
+ if(R.rev>=2){bb.textContent='إحياء غير متاح (استُنفد)';bb.disabled=true}
+ else if(S.save.coins<rc){bb.textContent='إحياء ('+rc+' ذهب) — الذهب لا يكفي';bb.disabled=true}
+ else{bb.textContent='إحياء ('+rc+' ذهب)';bb.disabled=false}
+ var rows=$('d-stats');
+}
+function doRevive(){
+ if(!R||R.rev>=2)return false;
+ var rc=[100,250][R.rev]||0;
+ if(S.save.coins<rc)return false;
+ S.save.coins-=rc;R.rev++;persist();
+ R.hp=R.mhp*0.6;R.untouchT=2.5;R.ebs=[];
+ R.en.forEach(function(e){var d=Math.hypot(e.x-R.px,e.y-R.py);
+  if(d<260&&d>0.01){var f=(260-d)/d;e.x+=(e.x-R.px)*f;e.y+=(e.y-R.py)*f}});
+ R.parts.push({ring:1,x:R.px,y:R.py,r:0,life:0.6,col:'#a78bfa'});
+ sfx('revive');toast('إحياء! استأنف المعركة');
+ S.scr='playing';showScreen();
+ return true;
+}
+function bankGold(extra){
+ if(!R)return;
+ var earned=runGold(R);
+ var add=earned-(R.banked||0)+(extra||0);
+ R.banked=earned;S.save.coins+=add;
+}
+function makeEnemy(ty,x,y,over){
+ var n=ENEMS[ty],d=DIFFS[R.df],mm=MAPS[R.mp].mul;
+ var o={ty:ty,x:x,y:y,vx:0,vy:0,dir:0,
+  hp:n.hp*(1+R.t/d.hd),
+  r:n.r,sp:n.sp*mm*d.sm,g:n.g,dmg:n.dmg,turn:n.turn,
+  animT:Math.random()*6,fl:0,st:{},fh:(over&&over.fh)||0,
+  sl:0,bu:0,bl:0,kb:0,kbx:0,kby:0,dying:0,cy:0,ph:1,drawT:0,shootT:1+Math.random()*1.5,
+  chT:0,chSt:0,dashT:0,alt:Math.random()<0.5?1:-1,boss:false};
+ if(over&&over.hp)o.hp=over.hp;
+ if(over&&over.sl)o.sl=over.sl;if(over&&over.bu)o.bu=over.bu;if(over&&over.bl)o.bl=over.bl;
+ o.mhp=Math.max(1,o.hp);
+ return o;
+}
+function spawnRing(){
+ var d=Math.max(W,H)/2+40,a=rr()*Math.PI*2;
+ return {x:R.px+Math.cos(a)*d,y:R.py+Math.sin(a)*d,d:d,a:a};
+}
+function pickType(t){
+ if(t<45)return 'bat';
+ if(t<=150)return rr()<0.5?'bat':'zombie';
+ if(t<=300){var r0=rr();return r0<0.2?'bat':(r0<0.76?'zombie':'brute')}
+ return rr()<0.5?'zombie':'brute';
+}
+function spawnEnemy(){
+ if(R.en.length>=DIFFS[R.df].cap)return;
+ var t=R.t,ty=pickType(t);
+ if(t>60&&rr()<Math.min(0.45,0.1+t/900))ty=['ghost','skel','charger','bomber'][Math.floor(rr()*4)];
+ var p=spawnRing();
+ R.en.push(makeEnemy(ty,p.x,p.y));
+}
+function spawnBoss(){
+ if(!R||R.bossN>=9)return;
+ R.bossN++;
+ var d=DIFFS[R.df];
+ var seed=Math.floor(rr()*1000000);
+ var p=spawnRing(),spr=bossMake(seed);
+ R.bosses.push({x:p.x,y:p.y,spr:spr,seed:seed,hp:d.b0+d.b1*R.bossN,mhp:d.b0+d.b1*R.bossN,
+  r:42,sp:52*MAPS[R.mp].mul*d.sm,dmg:40,ab:seed%3,
+  abT:3,animT:0,fl:0,kb:0,kbx:0,kby:0,st:{},sumT:6,chSt:0,chT:0,dir:0,mv:1,boss:true});
+ toast('زعيم '+R.bossN+' قد وصل!');sfx('bossspawn');
+}
+function rr(){var s=R.rs||1;var hi=Math.floor(s/44488),lo=s%44488;var t=48271*lo-3399*hi;if(t<0)t+=2147483647;R.rs=t;return t/2147483647}
+function nearestTarget(range){
+ var best=null,bd=range*range;
+ for(var i=0;i<R.en.length;i++){var e=R.en[i];
+  if(e.dying)continue;if(e.ty==='ghost'&&e.ph===0)continue;
+  var dx=e.x-R.px,dy=e.y-R.py,d2=dx*dx+dy*dy;
+  if(d2<bd){bd=d2;best=e}}
+ for(var bi=0;bi<R.bosses.length;bi++){var B=R.bosses[bi];
+  var dx2=B.x-R.px,dy2=B.y-R.py,d22=dx2*dx2+dy2*dy2;
+  if(d22<bd){bd=d22;best=B}}
+ return best;
+}
+function weaponTick(dt){
+ if(R.wt>0){R.wt-=dt;return}
+ var tg=nearestTarget(R.w.rng);
+ if(!tg){R.wt=0.08;return}
+ fireWeapon(tg);
+}
+function fireWeapon(tg){
+ var ch=CHARS[R.ch],w=R.w,ang=Math.atan2(tg.y-R.py,tg.x-R.px);
+ R.face=tg.x>=R.px?1:-1;
+ R.wt=w.cd;
+ var d=dmgOf(),crit=w.critC>0&&Math.random()<w.critC;
+ if(crit)d*=w.critM;
+ sfx(ch.kind==='arrow'?'knife':(ch.kind==='bullet'?'rifle':ch.kind==='melee'?'swing':ch.kind==='vial'?'vial':'cast'));
+ if(ch.kind==='melee'){
+  R.swT=w.swing;R.swDir=ang;R.swHit={};
+  if(ch.id==='berserk')R.swAlt=!R.swAlt;
+  return;
+ }
+ if(ch.kind==='knife'){
+  for(var i=0;i<(w.count||2);i++){
+   var a=ang+(i-(w.count-1)/2)*(ch.spread||0.14);
+   spawnBullet(a,d,w,ch,{trail:'#e8ecf2'});
+  }
+  return;
+ }
+ if(ch.kind==='bullet'){
+  spawnBullet(ang+(Math.random()-0.5)*0.02,d,w,ch,{trail:'#ffd54a',tracer:1});
+  return;
+ }
+ spawnBullet(ang,d,w,ch,{trail:ch.col,orb:(ch.kind==='orb'||ch.kind==='soul'||ch.kind==='fire')?1:0});
+ if(ch.kind==='vial')R.bs[R.bs.length-1].spin=1;
+}
+function spawnBullet(ang,dmg,w,ch,o){
+ R.bs.push({x:R.px,y:R.py,vx:Math.cos(ang)*w.ps,vy:Math.sin(ang)*w.ps,
+  dmg:dmg,pierce:(w.pierce||0),life:ch.life,r:ch.br,col:ch.col,
+  kind:ch.kind,trail:o.trail||ch.col,spin:0,
+  splash:w.splash,tracer:o.tracer||0,home:w.home||0,ang:ang,hit:{}});
+}
+function updBullets(dt){
+ for(var i=R.bs.length-1;i>=0;i--){
+  var b=R.bs[i];
+  if(b.home>0&&R.en.length){
+   var tg=nearestTarget(400);
+   if(tg){var want=Math.atan2(tg.y-b.y,tg.x-b.x),cur=Math.atan2(b.vy,b.vx);
+    var dd=angDiff(want,cur);cur+=clamp(dd,-b.home*dt,b.home*dt)*b.home;
+    var sp=Math.hypot(b.vx,b.vy);b.vx=Math.cos(cur)*sp;b.vy=Math.sin(cur)*sp}}
+  b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+  if(Math.random()<0.35)R.parts.push({x:b.x,y:b.y,vx:0,vy:0,life:0.18,r:2,col:b.trail,glow:1});
+  var hitSomething=false;
+  for(var j=0;j<R.en.length;j++){var e=R.en[j];
+   if(e.dying||b.hit[e.ty+j])continue;
+   if(e.ty==='ghost'&&e.ph===0)continue;
+   var rr2=e.r+b.r;
+   if(segHit(b.x-b.vx*dt,b.y-b.vy*dt,b.x,b.y,e.x,e.y,rr2)){
+    b.hit[e.ty+j]=1;hitEnemy(e,b.dmg,b);
+    if(e.boss)continue;
+    if(b.kind==='vial')spawnCloud(b.x,b.y);
+    else if(b.splash)splashDmg(b.x,b.y,b.splash,b.dmg*0.6);
+    b.pierce--;hitSomething=true;
+    if(b.pierce<0){R.bs.splice(i,1);break}}}
+  for(var bi2=0;bi2<R.bosses.length;bi2++){var bb=R.bosses[bi2];
+   if(b.hit['B'+bi2])continue;
+   var rrb=bb.r+b.r;
+   if(segHit(b.x-b.vx*dt,b.y-b.vy*dt,b.x,b.y,bb.x,bb.y,rrb)){b.hit['B'+bi2]=1;hitBoss(bb,b.dmg);
+    if(b.kind==='vial')spawnCloud(b.x,b.y);
+    else if(b.splash)splashDmg(b.x,b.y,b.splash,b.dmg*0.6);
+    b.pierce--;hitSomething=true;
+    if(b.pierce<0){R.bs.splice(i,1);break}}}
+  if(hitSomething)continue;
+  if(b.life<=0){
+   if(b.kind==='vial')spawnCloud(b.x,b.y);
+   else if(b.splash&&!hitSomething&&b.kind==='fire')splashDmg(b.x,b.y,b.splash,b.dmg*0.6);
+   R.bs.splice(i,1)}
+ }
